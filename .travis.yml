@@ -1,0 +1,44 @@
+env:
+  - distro: debianjessie
+    init: "/sbin/init"
+    run_opts: ""
+    playbook: test.yml
+  - distro: ubuntutrusty
+    init: "/sbin/init"
+    run_opts: ""
+    playbook: test.yml
+  - distro: ubuntuxenial
+    init: "/sbin/init"
+    run_opts: ""
+    playbook: test.yml
+
+services:
+  - docker
+
+before_install:
+  - docker pull jebovic/${distro}-ansible:latest
+
+script:
+  # run container
+  - container_id=$(mktemp)
+  - docker run --detach --privileged --volume=/sys/fs/cgroup:/sys/fs/cgroup:ro --volume="${PWD}":/etc/ansible/roles/role_under_test:ro ${run_opts} jebovic/${distro}-ansible:latest "${init}" > "${container_id}"
+  # syntax checking
+  - docker exec --tty "$(cat ${container_id})" env TERM=xterm ansible-playbook /etc/ansible/roles/role_under_test/tests/${playbook} --syntax-check
+  # test role
+  - docker exec "$(cat ${container_id})" env TERM=xterm ansible-playbook /etc/ansible/roles/role_under_test/tests/${playbook}
+  # test role idempotence
+  - idempotence=$(mktemp)
+  - docker exec "$(cat ${container_id})" ansible-playbook /etc/ansible/roles/role_under_test/tests/${playbook} | tee -a ${idempotence}
+  - >
+    tail ${idempotence}
+    | grep -q 'changed=0.*failed=0'
+    && (echo 'Idempotence test: pass' && exit 0)
+    || (echo 'Idempotence test: fail' && exit 1)
+  # test role tasks
+  - docker exec --tty "$(cat ${container_id})" env TERM=xterm node --version
+  - docker exec --tty "$(cat ${container_id})" env TERM=xterm npm --version
+
+notifications:
+  webhooks: https://galaxy.ansible.com/api/v1/notifications/
+  slack:
+    secure: LHrFrWxVOh55rLQ4O90HyS6mnAm4j322AKR7prgiIAO5i6rUw2hVKGo+tC+/w1/eJ55PLqHHWCWb+YmfNBr3yJtj9e7Z12XYehF5tAFpMjn0xrlIE1hfmNXZBEt/I/5fGaybgu9QoPIdXlsv97ADg+L81AXWGOiBUrvYq6tHgDedgKQ/PIisu+lHTXlWCd8pfOau4w+/iavNMBsf0Rky1Yfq1bTGsk5TP7WTyuD39GCnOFTU+ZbBnLi2z3kINg8f6pqFDgC2lq2uuLbYn1KsMVsZCwM9d1M4jJSXdecs1wR2vvONbUSTcKR2Lr89rBBS7Qm7tP4Frcgmq/jnyjxgcJ2GX8P74w7IMH1mlPzkwStU2mRZyChMm2OVqYHOFErvTDPl21iPczVNBEZWGWiEcUXCiT+8TRcbc2M7ILUoPpElhoYr911GfGLA5gWTuziIQf0xTH7/2aL0x4Fz3hHEwaD4b3rjnUvJi+TSzBnwm7hu8Z2Lwp3qwoG2HkqdYO7nz96E9uona1J1+cdHXJ8eObdX91bXnkzhGUpkMD7NhyxwXl7zk1fuZz58R2bOJyv3fa7+xQGMCB0OBH/vNXyC4GpIVga9h/aKyIq8tHe1pXCrMyhgSGKwkh5oExKv3MUEZVNbCXPEytHUcApONHU8gfxGN+rgwf0hp/IOSKCCXPI=

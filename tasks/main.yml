@@ -1,0 +1,70 @@
+---
+
+- name: install apt-transport-https dependency
+  apt:
+    name: apt-transport-https
+    state:              latest
+    install_recommends: false
+
+- name: install key
+  apt_key:
+    url: "{{ nodejs_apt_key_url }}"
+    state: present
+
+- name: add repos
+  apt_repository:
+    repo: "{{ item }}"
+    state: present
+    update_cache: yes
+  with_items: "{{ nodejs_apt_repositories }}"
+
+- name: install apt packages
+  apt:
+    name:  "{{ item }}"
+    state:              latest
+    install_recommends: false
+    update_cache:       yes
+    cache_valid_time:   300
+  with_items: "{{ nodejs_packages }}"
+
+- name: "ensure {{ nodejs_npm_config_path }} exists"
+  file:
+    path: "{{ nodejs_npm_config_path }}"
+    state: directory
+    owner: "{{ nodejs_npm_user | default('root') }}"
+    group: "{{ nodejs_npm_usergroup | default('root') }}"
+    mode: 0744
+  tags: nodejs_config
+
+- name: set env variables
+  template:
+    src: nodejs.sh.j2
+    dest: /etc/profile.d/nodejs.sh
+    mode: 0644
+  tags: nodejs_config
+
+- name: install npm packages
+  npm:
+    name: "{{ item.name }}"
+    version: "{{ item.version | default('latest') }}"
+    global: yes
+    state: present
+  environment:
+    NPM_CONFIG_PREFIX: "{{ nodejs_npm_config_path }}"
+    NODE_PATH: "{{ nodejs_npm_config_path }}/lib/node_modules"
+    NPM_CONFIG_UNSAFE_PERM: "{{ nodejs_npm_config_unsafe_perm }}"
+  with_items: "{{ nodejs_npm_packages }}"
+  tags: nodejs_npm_addons
+
+- name: upgrade npm packages
+  npm:
+    name: "{{ item.name }}"
+    version: "{{ item.version | default('latest') }}"
+    global: yes
+    state: latest
+  environment:
+    NPM_CONFIG_PREFIX: "{{ nodejs_npm_config_path }}"
+    NODE_PATH: "{{ nodejs_npm_config_path }}/lib/node_modules"
+    NPM_CONFIG_UNSAFE_PERM: "{{ nodejs_npm_config_unsafe_perm }}"
+  with_items: "{{ nodejs_npm_packages }}"
+  tags: nodejs_npm_addons
