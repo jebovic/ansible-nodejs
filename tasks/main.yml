@@ -3,7 +3,7 @@
 - name: install apt-transport-https dependency
   apt:
     name: apt-transport-https
-    state: latest
+    state: present
     install_recommends: false
     update_cache: yes
 
