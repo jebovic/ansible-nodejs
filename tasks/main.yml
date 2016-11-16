@@ -6,6 +6,7 @@
     state: present
     install_recommends: false
     update_cache: yes
+  changed_when: False
 
 - name: install key
   apt_key:
