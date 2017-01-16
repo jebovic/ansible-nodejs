@@ -4,29 +4,39 @@
   apt:
     name: apt-transport-https
     state: present
-    install_recommends: false
+    install_recommends: no
     update_cache: yes
+    cache_valid_time:   86400
   changed_when: False
 
 - name: install key
   apt_key:
     url: "{{ nodejs_apt_key_url }}"
     state: present
+  register: nodejs_key_installed
 
 - name: add repos
   apt_repository:
     repo: "{{ item }}"
     state: present
-    update_cache: yes
+    update_cache: no
+  when: nodejs_key_installed|success
+  register: nodejs_repo_installed
   with_items: "{{ nodejs_apt_repositories }}"
+
+- name: update apt cache
+  apt:
+    update_cache:       yes
+  when: nodejs_repo_installed|changed
 
 - name: install apt packages
   apt:
     name:  "{{ item }}"
     state:              latest
-    install_recommends: false
+    install_recommends: no
     update_cache:       yes
-    cache_valid_time:   300
+    cache_valid_time:   86400
+  when: nodejs_repo_installed|success
   with_items: "{{ nodejs_packages }}"
 
 - name: "ensure {{ nodejs_npm_config_path }} exists"
